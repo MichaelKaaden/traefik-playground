@@ -14,7 +14,8 @@ the former or the latter.
 My goal was to replace Nginx with _Traefik_. Since the latter is container-aware, my expectation is that this will
 result in a much simpler configuration.
 
-With this repository, I would like to remind my future self how it all works.
+With this, I would like to remind my future self how it all works. A repository containing the sources can be found
+on [GitHub](https://github.com/MichaelKaaden/traefik-playground.git).
 
 Hint: I'm using Docker to run my applications. For Kubernetes, there will be some differences which you'd have to swap
 out consulting Traefik's docs.
