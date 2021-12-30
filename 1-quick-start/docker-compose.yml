@@ -1,0 +1,22 @@
+version: "3"
+
+services:
+  traefik:
+    # the official v2.5 Traefik docker image
+    image: traefik:v2.5
+    command:
+      # let's use Docker as our infrastructure
+      - "--providers.docker=true"
+    ports:
+      # the HTTP port
+      - "80:80" # or e. g. "10080:80" if port 80 is in use on your box
+    volumes:
+      # so that Traefik can listen to the Docker events
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+
+  whoami:
+    # a container that exposes an API to show its IP address
+    image: traefik/whoami
+    labels:
+      # use a catch-all router here
+      - "traefik.http.routers.whoami.rule=PathPrefix(`/`)"
