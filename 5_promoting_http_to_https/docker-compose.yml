@@ -44,7 +44,6 @@ services:
 
   nginx:
     image: nginx:mainline-alpine
-      #image: traefik/whoami
     labels:
       - "traefik.http.routers.nginx.rule=PathPrefix(`/nginx`)"
       - "traefik.http.middlewares.nginx-stripprefix.stripprefix.prefixes=/nginx"
