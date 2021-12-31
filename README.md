@@ -1,10 +1,10 @@
 # Traefik Playground
 
-tl;dr This is all about replacing Nginx with Trafik.
+tl;dr This is all about replacing Nginx with Traefik.
 
 ## About
 
-Most applications I run in production are based on container images. Usually, I put a Nginx instance as reverse proxy (
+I run most of the applications I run productively as containers. Usually, I put an Nginx instance as reverse proxy (
 or "edge router", as Traefik calls it) in front of it to hide my application architecture (typically at least separating
 the frontend from the API gateway). For this purpose, I use different path prefixes to distinguish between requests for
 the former or the latter.
@@ -14,16 +14,16 @@ the former or the latter.
 My goal was to replace Nginx with _Traefik_. Since the latter is container-aware, my expectation is that this will
 result in a much simpler configuration.
 
-With this, I would like to remind my future self how it all works. A repository containing the sources can be found
-on [GitHub](https://github.com/MichaelKaaden/traefik-playground.git).
+With this document, I would like to remind my future self how it works. A repository containing all the sources can be
+found on [GitHub](https://github.com/MichaelKaaden/traefik-playground.git).
 
-Hint: I'm using Docker to run my applications. For Kubernetes, there will be some differences which you'd have to swap
-out consulting Traefik's docs.
+**Hint:** I use Docker to run my applications, so I also describe everything here in terms of Docker. For Kubernetes,
+there are some differences that you need to be aware of, so please have a look at the documentation for details.
 
 ## Quick Start
 
-For the first steps, let's create a `docker-compose.yml` file that defines a simple application consisting of only one
-simple "Who Am I" service to show the request headers and the container's ID (besides Traefik, of course):
+For the first steps, let's create a `docker-compose.yml` file that defines a simple application consisting of only
+Traefik and a "Who Am I" service to show the request headers and the container ID:
 
 ```dockerfile
 version: "3"
@@ -89,16 +89,16 @@ shows the complete HTTP request, so you can use this service to debug your edge 
 
 Without much ado, Traefik handles multiple instances of the same service by load-balancing them. Try it out for yourself
 with `docker-compose up -d --scale whoami=2`. Sending requests via `curl`, you'll see they're handled by different
-services by looking at the "Hostname" in the response.
+containers by looking at the "Hostname" in the response.
 
 ## Routing Requests To A Second Service
 
-Now for something a bit more complicated. Let's add another service. We'll redirect HTTP requests to this second service
-with its own routing prefix (remember, we could use host parts or other rules, too). You now see how to expand this to
-an arbitrary number of services.
+Now for something a bit more complicated: Let's add another service. We'll redirect HTTP requests to this second service
+with its own routing prefix (remember, we could use host parts or other rules, too). So you know how to extend this
+principle to any number of services.
 
 We'll keep the `whois` service and add an `nginx` service -- the latter will respond with 404 pages to whatever request
-it receives. This will be sufficient to demonstrate which container sent a response.
+it receives. This will be sufficient to make it clear which container sent the response.
 
 Now append the following service definition to the previously created `docker-compose.yml`:
 
@@ -110,7 +110,7 @@ Now append the following service definition to the previously created `docker-co
       - "traefik.http.routers.nginx.rule=PathPrefix(`/nginx`)"
 ```
 
-Now, getting `/` still routes to the `whoami` service:
+Now, GETting `/` still routes to the `whoami` service:
 
 ```
 $ curl http://localhost
@@ -144,7 +144,7 @@ $ curl http://localhost/nginx
 </html>
 ```
 
-The interesting part for me is that I did not have to specify any forwarders in an Nginx configuration file nor had to
+The interesting part for me is that I did _not_ have to specify any forwarders in an Nginx configuration file nor had to
 explicitly specify hostnames, ports, or networks. Everything could be done with a simple label in
 the `docker-compose.yml`. Great!
 
@@ -159,7 +159,7 @@ Here you can clearly see the problem mentioned before: `request: "GET /nginx HTT
 
 ## Removing The Request's Prefix
 
-We want the request to hit the service without the prefix we only use for routing decisions. That's an easy one.
+We want the request to hit the service _without_ the prefix we only use for routing decisions. That's an easy one.
 
 Just append those two labels to the `nginx` service definition in your `docker-compose.yml` file:
 
@@ -171,7 +171,7 @@ Just append those two labels to the `nginx` service definition in your `docker-c
 Te first label creates a middleware called `nginx-stripprefix` that removes ("strips") the HTTP request's path
 prefix `/nginx`. The second label then assigns this middleware to the nginx service's router.
 
-Remember that this always is a two-step process -- the Traefik documentation is not very clear about is in the example
+Remember that this always is a two-step process -- the Traefik documentation is not very clear about this in the example
 code, so this took me a while.
 
 Now let's try this out: `curl http://localhost/nginx`
@@ -252,7 +252,6 @@ services:
 
   nginx:
     image: nginx:mainline-alpine
-      #image: traefik/whoami
     labels:
       - "traefik.http.routers.nginx.rule=PathPrefix(`/nginx`)"
       - "traefik.http.middlewares.nginx-stripprefix.stripprefix.prefixes=/nginx"
@@ -304,8 +303,8 @@ X-Real-Ip: 172.25.0.1
 ```
 
 The `whois` service tells us it received HTTP and that the protocol was HTTPS -- that's what we expected. We use Traefik
-to terminate the HTTPS request and internally send HTTP. That means a great speedup as there's not TLS handshake slowing
-every _internal_ request.
+to terminate the HTTPS request and internally send HTTP. That results in great speedup as there's no TLS handshake
+slowing down every _internal_ request.
 
 ```
 $ curl -k https://localhost/nginx
@@ -338,8 +337,8 @@ Now, our services still work, but are now secured using TLS.
 
 ## Redirecting HTTP to HTTPS
 
-The last piece of the puzzle is redirecting requests to the HTTP port to HTTPS, therefore promoting them. It's quite
-easy to do so. Just add the following to the Traefik service's command:
+The last piece of the puzzle is redirecting incoming HTTP requests to HTTPS, therefore promoting them. It's quite easy
+to do so. Just add the following to the Traefik service's command:
 
 ```yaml
         # Redirect HTTP to HTTPS
@@ -388,7 +387,7 @@ the `docker-compose.yml` file. For me, that's much better. Also, load-balancing 
 Keeping a configuration consistent between different applications is much easier when it's only done in one file. So
 I'll stick to Traefik for the time being.
 
-I'm very excited to see what comes next. ;-)
+I'm very excited to see what will come next. ;-)
 
 ## References
 
