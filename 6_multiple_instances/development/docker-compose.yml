@@ -1,0 +1,56 @@
+version: "3"
+
+services:
+  reverse-proxy:
+    # the official v2 Traefik docker image
+    image: traefik:v2.5
+    command:
+        # Declares the web entrypoint in Traefik
+      - "--entrypoints.web.address=:80"
+        # Declares the web-secure entrypoint in Traefik
+      - "--entrypoints.web-secure.address=:443"
+        # Redirect HTTP to HTTPS, see
+        # https://doc.traefik.io/traefik/routing/entrypoints/#redirection
+      - "--entrypoints.web.http.redirections.entryPoint.to=web-secure"
+      - "--entrypoints.web.http.redirections.entryPoint.scheme=https"
+      - "--entrypoints.web.http.redirections.entrypoint.permanent=true"
+        # Use Docker
+      - "--providers.docker=true"
+        # In the dynamic configuration, make sure to use full paths
+        # starting with "/configuration" to prevent strange errors like
+        # "Error while creating certificate store: failed to load X509 key
+        # pair: tls: failed to find any PEM data in certificate input"
+      - "--providers.file.directory=/configuration/"
+        # watch for changes in the configuration
+      - "--providers.file.watch=true"
+      - "--providers.docker.constraints=Label(`namespace`,`${COMPOSE_PROJECT_NAME}`)"
+    ports:
+        # the HTTP port
+      - "${TRAEFIK_HTTP_PORT}:80"
+        # the HTTPS port
+      - "${TRAEFIK_HTTPS_PORT}:443"
+    volumes:
+        # so that Traefik can listen to the Docker events
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      - "./configuration/:/configuration/"
+
+  whoami:
+    # a container that exposes an API to show its IP address
+    image: traefik/whoami
+    labels:
+      # - "traefik.http.routers.whoami.rule=Host(`whoami.docker.localhost`)"
+      # use a catch-all router here
+      - "traefik.http.routers.whoami.rule=PathPrefix(`/`)"
+      - "traefik.http.routers.whoami.tls=true"
+      - "namespace=${COMPOSE_PROJECT_NAME}"
+
+  nginx:
+    image: nginx:mainline-alpine
+    labels:
+      - "traefik.http.routers.nginx.rule=PathPrefix(`/nginx`)"
+      - "traefik.http.middlewares.nginx-stripprefix.stripprefix.prefixes=/nginx"
+      - "traefik.http.routers.nginx.middlewares=nginx-stripprefix"
+      - "traefik.http.routers.nginx.tls=true"
+      - "namespace=${COMPOSE_PROJECT_NAME}"
+
+

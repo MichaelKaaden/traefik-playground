@@ -378,6 +378,126 @@ X-Real-Ip: 172.26.0.1
 Of course, instead of using more and more command line options for our `curl` command, we could have simply opened the
 URL in any browser. :-)
 
+## Multiple Traefik Instances on the Same Host
+
+One last problem remains: In practice, we need to be able to run multiple Traefik instances on the same host, e.g. for
+development, staging, testing, production, etc. Currently, this won't work. Before we look into this, we need to enable
+our application to run on different ports in the first place. To achieve this, we modify the "ports" section as follows:
+
+```
+services:
+  reverse-proxy:
+        # ...
+    ports:
+        # the HTTP port
+      - "${TRAEFIK_HTTP_PORT}:80"
+        # the HTTPS port
+      - "${TRAEFIK_HTTPS_PORT}:443"
+        # ...
+```
+
+These two environment variables can be set either via command-line parameters or in so-called _environment files_ that
+provide different environments.
+
+For simplicity, we'll use two environments, one for production, and one for development. So, let's create the two
+directories "production" and "development" and copy our previous configuration into both directories. Please modify
+the `reverse-proxy` service definition in both `docker-compose.yml` files to use the `ports` section using the
+environment variables given above.
+
+Note: Of course, in reality you would solve this differently than blindly copying files. Instead, you would work with
+soft links or use a generator, for example.
+
+In the "production" directory, create a file `.env` with the following content:
+
+```
+COMPOSE_PROJECT_NAME=production
+TRAEFIK_HTTP_PORT=3335
+TRAEFIK_HTTPS_PORT=3336
+```
+
+`COMPOSE_PROJECT_NAME` is one of
+the [compose CLI environment variables](https://docs.docker.com/compose/reference/envvars/#compose_project_name). You could use any other name here, too, but I like to do it this way.
+
+Similarly, in the "development" directory, create a `.env` file with the following content:
+
+```
+COMPOSE_PROJECT_NAME=development
+TRAEFIK_HTTP_PORT=4335
+TRAEFIK_HTTPS_PORT=4336
+```
+
+Your file system should now look like this:
+
+```
+.
+├── development
+│   ├── .env
+│   ├── configuration
+│   │   ├── certificates.yml
+│   │   ├── localhost.crt
+│   │   └── localhost.key
+│   └── docker-compose.yml
+└── production
+    ├── .env
+    ├── configuration
+    │   ├── certificates.yml
+    │   ├── localhost.crt
+    │   └── localhost.key
+    └── docker-compose.yml
+
+4 directories, 10 files
+```
+
+As you can see, both `.env` files define the same environment variables, but, of course, use different values. Because
+of this, the "production"
+application will be available on `https://localhost:3336`, while the "development" application
+uses `https://localhost:4336`.
+
+To run either application, change into either the `production` directory and use `docker-compose up -d` there to start
+the "production" application, or the `development` directory and run the same command to start the `development`
+application.
+
+Now we notice something interesting: Each application works perfectly on its own, but when we run both at the same time
+on the same host, neither of them works. Instead, you'll see a "Gateway Timeout" message. How come?
+
+The explanation is simple: Traefik knows about every container on the machine. Therefore, for Traefik, each router
+definition must be unique on this host. But this is exactly not the case: Both applications use the _same_ definition.
+Thus, the workaround is also clear: we have to make the definitions unique. For Docker, there is a concept in Traefik
+called [constraints](https://doc.traefik.io/traefik/providers/docker/#constraints). These can be seen as a kind of
+namespace. If we apply these constraints correctly, Traefik will isolate each instance as we expected in the first
+place.
+
+Let's use a constraint named `namespace`. Here are the necessary changes:
+
+```dockerfile
+version: "3"
+
+services:
+  reverse-proxy:
+    # ...
+    command:
+        # ...
+      - "--providers.docker.constraints=Label(`namespace`,`${COMPOSE_PROJECT_NAME}`)"
+    # ...
+
+  whoami:
+    # ...
+    labels:
+      # ...
+      - "namespace=${COMPOSE_PROJECT_NAME}"
+
+  nginx:
+    # ...
+    labels:
+      - "namespace=${COMPOSE_PROJECT_NAME}"
+```
+
+We define the constraint in the static configuration and use it in every service. For the label value, we use
+the `COMPOSE_PROJECT_NAME` environment variable.
+
+Now restart both applications. As you will see, the constraints enable us run multiple instances or our application in
+parallel.
+
 ## Conclusion
 
 We now have everything at hand to easily swap out the existing Nginx as reverse proxy (or "edge router") and replace it
