@@ -1,10 +1,10 @@
 # Traefik Playground
 
-tl;dr This is all about replacing Nginx with Traefik.
+tl;dr This is all about replacing Nginx with Traefik in your Docker Compose file.
 
 ## About
 
-I run most of the applications I run productively as containers. Usually, I put an Nginx instance as reverse proxy (
+I run most of the applications I use productively in the form of Docker containers. Usually, I put an Nginx instance as reverse proxy (
 or "edge router", as Traefik calls it) in front of it to hide my application architecture (typically at least separating
 the frontend from the API gateway). For this purpose, I use different path prefixes to distinguish between requests for
 the former or the latter.
